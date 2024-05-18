@@ -1,0 +1,31 @@
+{
+    "example.html": 
+    [
+        {
+            "chart_selector": "sales_per_sku_piechart",
+            "data_tag_name": "{{ sales_per_sku_piechart_data|safe }}",
+            "label_tag_name": "{{ sales_per_sku_piechart_labels|safe }}",
+            "color_tag_name": "None"
+        },
+        {
+            "chart_selector": "sales_per_month_barchart",
+            "data_tag_name": "{{ sales_per_month_barchart_data|safe }}",
+            "label_tag_name": "{{ sales_per_month_barchart_labels|safe }}",
+            "color_tag_name": "None"
+        },
+        {
+            "chart_selector": "profit_per_month_barchart",
+            "data_tag_name": "{{ profit_per_month_barchart_data|safe }}",
+            "label_tag_name": "{{ profit_per_month_barchart_labels|safe }}",
+            "color_tag_name": "None"
+        },
+        {
+            "chart_selector": "retail_wholesale_piechart",
+            "data_tag_name": "{{ retail_wholesale_piechart_data|safe }}",
+            "label_tag_name": "{{ retail_wholesale_piechart_labels|safe }}",
+            "color_tag_name": "None"
+        }
+    ],
+    "inventory.html": [],
+    "sales.html": []
+}
