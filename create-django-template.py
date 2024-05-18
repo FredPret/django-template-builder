@@ -1,10 +1,3 @@
-'''
-takes a Bootstrap Studio template:
-1. deletes the sample data
-2. replaces it with Django template tags
-3. replaces "/assets/" with the {{ static_root_path }} tag
-4. copies the finished templates to the correct template folder
-'''
 
 from bs4 import BeautifulSoup
 import json
@@ -19,6 +12,8 @@ def correct_static_file_tag(html):
 
 def control(html):
     '''
+    sets up some django template control structures.
+
     if:
     django-if="{{ if-statement }} "
 
@@ -26,8 +21,8 @@ def control(html):
 
 
     for:
-    django-for="{{ iterator }}"
-    django-iterable="{{ iterable }}"
+    django-for="iterator"
+    django-iterable="iterable"
 
     :param html:
     :return:
@@ -146,6 +141,11 @@ def variables(html):
 
 
 def update_chart_data(html, chart_selector, data_tag_name, label_tag_name, color_tag_name=None):
+    '''
+    deletes the sample data in your template chart
+    replaces it with Django template tags
+    '''
+    
     # chart_selector = "sales-per-sku-piechart"
     soup = BeautifulSoup(html, 'html.parser')
     
