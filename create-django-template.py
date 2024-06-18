@@ -4,21 +4,76 @@ import json
 import sys
 import argparse
 import os
+from htmlmin import minify
+import csscompressor
+import rjsmin
+import re
 
 
-def correct_static_file_tag(html):
-    return html.replace('/assets/', '{{ static_root_path }}/')
+def minify_css_and_js_files(root_folder):
+    '''
+    minifies CSS and JS files in all subfolders of root_folder
+    '''
+    for subdir, _, files in os.walk(root_folder):
+        for file in files:
+            # css
+            if file.endswith('.css'):
+                file_path = os.path.join(subdir, file)
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                minified_content = csscompressor.compress(content)
+                with open(file_path, 'w') as f:
+                    f.write(minified_content)
+            # js
+            if file.endswith('.js'):
+                file_path = os.path.join(subdir, file)
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                minified_content = rjsmin.jsmin(content)
+                with open(file_path, 'w') as f:
+                    f.write(minified_content)
+
+
+def correct_static_file_tag(html, app_name='cms'):
+    # load static tag
+    html = r'''{% load static %} ''' + html
+    # find all file references like assets/..../abc.jpg
+    index = 0
+    start_text = 'assets/'
+    end_text = [' ', '>']
+    i = 0
+    while index < len(html):
+        print(f"hello")
+        i += 1
+        index = html.find(start_text, index)
+        # find endings
+        endings = []
+        for ending in end_text:
+            endings.append(html.find(ending, index))
+        end_index = min(endings) # end index is the first ending
+        if index != -1 and end_index > index and end_index != -1: # found a snippet - replace it
+            # splice new static address into html where the old one was
+            old_asset_address = html[index:end_index-1]
+            new_asset_address = ''' "{% static '''
+            new_asset_address += "'"
+            new_asset_address += app_name + '/' + old_asset_address
+            new_asset_address += "'"
+            new_asset_address += ''' %}" '''
+            html = html[:index-1] + new_asset_address + html[end_index:]
+            index += len(new_asset_address)
+        else:
+            break
+    return html
 
 
 def control(html):
     '''
-    sets up some django template control structures.
+    sets up the most-used django template control structures.
 
     if:
     django-if="{{ if-statement }} "
 
     # TODO: django-elif and django-else
-
 
     for:
     django-for="iterator"
@@ -186,7 +241,8 @@ def update_chart_data(html, chart_selector, data_tag_name, label_tag_name, color
 
 def main(arg):
     '''
-    -d (required) template directory with HTML files
+    -d (either d or s is required) template directory with HTML files
+    -s (either d or s is required) directory with asset files
     -a (optional) update asset location (for instance /assets/img/hello.jpg) to use a Django tag (like {{ static_root_path }}/img/hello.jpg)
     -c (optional) replace chart data variables
     -f (optional) process given file only, otherwise run through all files in the folder by default
@@ -194,71 +250,88 @@ def main(arg):
 
     # get arguments
     parser = argparse.ArgumentParser(description="Input arguments")
-    parser.add_argument('-d', '--directory', type=str, help='Path to template directory')
+    parser.add_argument('-hd', '--html_directory', type=str, help='Path to template directory')
+    parser.add_argument('-sd', '--static_directory', type=str, help='Path to template directory')
     parser.add_argument('-f', '--filename', type=str, help='Process this file only')
     parser.add_argument('-c', '--chart_variable_json_path', type=str, help='Path of chart variable data JSON')
     parser.add_argument('-a', '--update_asset_location', action='store_true', help='Change static asset location to {{ static_root_path }}')
     parsed_args = parser.parse_args(arg)
 
-    # interpret arguments
-    if parsed_args.directory:
-        directory = parsed_args.directory
+    # get directory
+    if parsed_args.html_directory:
+        html_directory = parsed_args.html_directory
+        static = False
     else:
-        raise EnvironmentError("Specify working directory with where HTML templates are")
+        if parsed_args.static_directory:
+            static_directory = parsed_args.static_directory
+            static = True
+        else:
+            raise EnvironmentError("Either static_directory (-sd) or html_directory (-hd) must be specified")
 
-    if parsed_args.filename:
-        file_list = [parsed_args.filename]
+    if static:
+        # minify css and js
+        minify_css_and_js_files(static_directory)
     else:
-        initial_file_list = os.listdir(directory)
-        file_list = []
-        for file in initial_file_list:
-            if file.endswith('.html'):
-                file_list.append(file)
+        # if there's a filename, do that filename only, otherwise list all html files
+        if parsed_args.filename:
+            file_list = [parsed_args.filename]
+        else:
+            initial_file_list = os.listdir(html_directory)
+            file_list = []
+            for file in initial_file_list:
+                if file.endswith('.html'):
+                    file_list.append(file)
 
-    if parsed_args.chart_variable_json_path:
-        chart_variable_json = json.loads(parsed_args.chart_variable_json_path)
-    else:
-        chart_variable_json = {}
+        # if a chart variable json was passed, load it, otherwise ignore the charts
+        if parsed_args.chart_variable_json_path:
+            chart_variable_json = json.loads(parsed_args.chart_variable_json_path)
+        else:
+            chart_variable_json = {}
+        
+        
 
-    # process each file
-    for filename in file_list:
-        # open file
-        with open(os.path.join(directory, filename), 'r') as f:
-            html = f.read()
+        # process each html file
+        for filename in file_list:
+            # open file
+            with open(os.path.join(html_directory, filename), 'r') as f:
+                html = f.read()
 
-        # update static tag if so instructed
-        if parsed_args.update_asset_location:
-            html = correct_static_file_tag(html)
+            # update static tag if so instructed
+            if parsed_args.update_asset_location:
+                html = correct_static_file_tag(html)
 
-        # get chart data for this file - could be nothing
-        transformation_list = chart_variable_json.get(filename)
+            # get chart data for this file - could be nothing
+            transformation_list = chart_variable_json.get(filename)
 
-        if transformation_list is not None:
-            # replace chart data
-            for transformation in transformation_list:
-                chart_selector = transformation['chart_selector']
-                data_tag_name = transformation['data_tag_name']
-                label_tag_name = transformation['label_tag_name']
-                color_tag_name = transformation['color_tag_name']
+            if transformation_list is not None:
+                # replace chart data
+                for transformation in transformation_list:
+                    chart_selector = transformation['chart_selector']
+                    data_tag_name = transformation['data_tag_name']
+                    label_tag_name = transformation['label_tag_name']
+                    color_tag_name = transformation['color_tag_name']
 
-                html, error = update_chart_data(html, chart_selector, data_tag_name, label_tag_name, color_tag_name)
+                    html, error = update_chart_data(html, chart_selector, data_tag_name, label_tag_name, color_tag_name)
 
-                if error is not None:
-                    print(error)
-                    sys.exit()
+                    if error is not None:
+                        print(error)
+                        sys.exit()
 
-        # control structures
-        html = control(html)
+            # control structures
+            html = control(html)
 
-        # variable names
-        html = variables(html)
+            # variable names
+            html = variables(html)
 
-        # django blocks
-        html = blocks(html)
+            # django blocks
+            html = blocks(html)
 
-        # save completed template
-        with open(os.path.join(directory, filename), 'w') as f:
-            f.write(html)
+            # minify html
+            html = minify(html)
+
+            # save completed template
+            with open(os.path.join(html_directory, filename), 'w') as f:
+                f.write(html)
 
 
 if __name__ == '__main__':

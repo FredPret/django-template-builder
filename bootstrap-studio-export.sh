@@ -7,13 +7,14 @@ chart_json_path="/path/to/your/chart/variables/json/is"
 log_path="/path/to/your/log/file"
 
 echo "$(date +'%Y-%m-%d %H:%M:%S'): Starting script in directory $1" >> $log_path
-cd $1
 
 # move assets
+cd $1
 rsync -av assets/* "$static_file_directory"
 echo "$(date +'%Y-%m-%d %H:%M:%S'): rsync from $1/assets/* to $static_file_directory done" >> $log_path
 
 # move HTML files
+cd $1
 rsync -av *.html "$django_template_directory"
 echo "$(date +'%Y-%m-%d %H:%M:%S'): rsync from $1/*.html to $django_template_directory done" >> $log_path
 
@@ -41,6 +42,11 @@ else
     command+=" -a"
 fi
 
+# run command to process HTML files
+eval $command
+
+# run command to minify CSS and JS files
+command="/usr/local/bin/python /Users/fred/localdev/django-template-builder/create-django-template.py -sd $static_file_directory"
 eval $command
 
 echo "$(date +'%Y-%m-%d %H:%M:%S'): python template update complete" >> $log_path
