@@ -35,35 +35,34 @@ def minify_css_and_js_files(root_folder):
 
 
 def correct_static_file_tag(html, app_name='cms'):
-    # load static tag
-    html = r'''{% load static %} ''' + html
-    # find all file references like assets/..../abc.jpg
-    index = 0
-    start_text = 'assets/'
-    end_text = [' ', '>']
-    i = 0
-    while index < len(html):
-        print(f"hello")
-        i += 1
-        index = html.find(start_text, index)
-        # find endings
-        endings = []
-        for ending in end_text:
-            endings.append(html.find(ending, index))
-        end_index = min(endings) # end index is the first ending
-        if index != -1 and end_index > index and end_index != -1: # found a snippet - replace it
-            # splice new static address into html where the old one was
-            old_asset_address = html[index:end_index-1]
-            new_asset_address = ''' "{% static '''
-            new_asset_address += "'"
-            new_asset_address += app_name + '/' + old_asset_address
-            new_asset_address += "'"
-            new_asset_address += ''' %}" '''
-            html = html[:index-1] + new_asset_address + html[end_index:]
-            index += len(new_asset_address)
-        else:
-            break
-    return html
+    html = '{% load static %} ' + html
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Update href and src attributes
+    for tag in soup.find_all(['a', 'link', 'script', 'img']):
+        if tag.name != 'a' and tag.has_attr('href'):
+            if str(tag['href'])[0:4] != 'http':
+                new_tag = f"{{% static '{app_name}/{tag['href']}' %}}"
+                print(f"replacing tag {tag['href']} with {new_tag}")
+                tag['href'] = new_tag
+        if tag.has_attr('src'):
+            new_tag = f"{{% static '{app_name}/{tag['src']}' %}}"
+            print(f"replacing tag {tag['src']} with {new_tag}")
+            tag['src'] = new_tag
+
+    # Update style attributes with background-image URLs
+    for tag in soup.find_all(style=True):
+        style = tag['style']
+        if 'background-image' in style:
+            updated_style = style
+            start = style.find("url('") + 5
+            end = style.find("')", start)
+            if start != -1 and end != -1:
+                asset_path = style[start:end]
+                updated_style = style[:start] + f"{{% static '{app_name}/{asset_path}' %}}" + style[end:]
+            print(f"replacing style attribute {tag['style']} with {updated_style}")
+            tag['style'] = updated_style
+    return str(soup)
 
 
 def control(html):
@@ -270,7 +269,8 @@ def main(arg):
 
     if static:
         # minify css and js
-        minify_css_and_js_files(static_directory)
+        #minify_css_and_js_files(static_directory)
+        pass
     else:
         # if there's a filename, do that filename only, otherwise list all html files
         if parsed_args.filename:
@@ -298,6 +298,7 @@ def main(arg):
 
             # update static tag if so instructed
             if parsed_args.update_asset_location:
+                print(f"\nstarting static file tag correction in file {filename}")
                 html = correct_static_file_tag(html)
 
             # get chart data for this file - could be nothing
@@ -327,7 +328,7 @@ def main(arg):
             html = blocks(html)
 
             # minify html
-            html = minify(html)
+            #html = minify(html)
 
             # save completed template
             with open(os.path.join(html_directory, filename), 'w') as f:

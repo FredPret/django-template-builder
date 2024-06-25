@@ -43,10 +43,13 @@ else
 fi
 
 # run command to process HTML files
-eval $command
+python_output=$(eval $command)
+echo "$python_output" >> $log_path
 
 # run command to minify CSS and JS files
 command="/usr/local/bin/python /Users/fred/localdev/django-template-builder/create-django-template.py -sd $static_file_directory"
-eval $command
+python_output=$(eval $command)
+echo "$python_output" >> $log_path
+
 
 echo "$(date +'%Y-%m-%d %H:%M:%S'): python template update complete" >> $log_path
